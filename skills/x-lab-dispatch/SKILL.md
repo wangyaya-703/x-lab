@@ -127,7 +127,7 @@ QUEUE=~/.openclaw/workspace/x-lab/queue.json
 
 ### 逐个发送飞书调研指令
 
-对每个候选，通过飞书 API 发消息给 OpenClaw 自身（使用 `lab.luna_receive_id` 配置的 receive_id）。
+对每个候选，通过飞书 API 发消息给调研执行者（使用环境变量 `DAILY_X_SIGNAL_FEISHU_RECEIVE_ID` 中配置的 open_id）。
 
 **消息格式**（固定，x-lab-research 的 trigger-hint 会匹配"调研" + GitHub URL）：
 
@@ -216,13 +216,20 @@ curl -s -X POST "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/in
 
 ---
 
-## 飞书认证
+## 飞书认证配置
 
-复用 daily-x-signal 的飞书 App 凭证：
-- `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 环境变量
-- 或从 `.env.local` 文件加载
+复用 daily-x-signal 的飞书 App 凭证，从 `~/.openclaw/workspace/daily-x-signal/.env.local` 加载：
 
-OpenClaw 的 receive_id 从配置项 `lab.luna_receive_id` 或环境变量中获取。
+| 环境变量 | 说明 | 用途 |
+|---------|------|------|
+| `FEISHU_APP_ID` | 飞书应用 App ID | 获取 tenant_access_token |
+| `FEISHU_APP_SECRET` | 飞书应用 App Secret | 获取 tenant_access_token |
+| `DAILY_X_SIGNAL_FEISHU_RECEIVE_ID` | 消息推送目标的 **open_id**（`ou_` 开头） | 发送调研指令和汇总通知 |
+
+**重要**：
+- `receive_id_type` 固定为 `open_id`（不是 user_id 或 chat_id）
+- open_id 是每个飞书应用独立的，不同 App 下同一用户的 open_id 不同
+- 加载方式：`source ~/.openclaw/workspace/daily-x-signal/.env.local`
 
 ---
 
