@@ -121,7 +121,10 @@ EXP_DIR=~/.openclaw/workspace/x-lab/experiments/$EXPERIMENT_ID
 ├── experiments/                   # 每个实验一个目录，目录即隔离（无需 git 分支）
 │   └── {experiment_id}/
 │       ├── experiment.json        # 结构化评分 + 进度追踪（唯一 source of truth）
-│       ├── research-report.md     # 可读报告（主要产出）
+│       ├── research-report.md     # 可读报告（主要产出，含 PlantUML 图）
+│       ├── notebook-briefing.md   # NotebookLM 播客素材（对话体深度解读）
+│       ├── architecture.puml      # 架构全景图（PlantUML 源码，可独立渲染）
+│       ├── integration-path.puml  # 实现路径图（PlantUML 源码）
 │       ├── install.log            # 安装日志
 │       ├── test.log               # 测试日志
 │       ├── demo.log               # 动手实验日志
@@ -449,6 +452,17 @@ except subprocess.TimeoutExpired:
       "adoption_effort": "low|medium|high",
       "adoption_notes": "接入需要做什么、有什么坑"
     },
+    "sharp_verdict": {
+      "strengths": ["优点1：一句话", "优点2：一句话"],
+      "weaknesses": ["缺点1：一句话", "缺点2：一句话"],
+      "one_line_judgement": "一句犀利的总结评价"
+    },
+    "outputs": {
+      "report": "research-report.md",
+      "notebook_briefing": "notebook-briefing.md",
+      "architecture_diagram": "architecture.puml",
+      "integration_path": "integration-path.puml"
+    },
     "overall_rating": 4,
     "overall_verdict": "recommend_try|worth_watching|wait|skip",
     "one_liner": "把真实浏览器登录态暴露为 CLI/MCP 接口，让 AI agent 能读写无 API 的网站"
@@ -484,7 +498,13 @@ except subprocess.TimeoutExpired:
 
 **进入时更新 progress.phase = "reporting"**
 
-写入 `research-report.md`。这份报告是调研的核心产出——它的价值不在于搬运 README，而在于**你读完源码、动手试过之后的独立判断**。
+写入以下文件：
+1. `research-report.md` — 完整技术报告（含 PlantUML 图、犀利点评、实现路径图）
+2. `notebook-briefing.md` — NotebookLM 播客素材（对话体，可直接喂给 NotebookLM 生成音频播客）
+3. `architecture.puml` — 架构全景图 PlantUML 源码（从 report 中提取，独立保存，方便渲染）
+4. `integration-path.puml` — 实现路径图 PlantUML 源码
+
+报告是调研的核心产出——它的价值不在于搬运 README，而在于**你读完源码、动手试过之后的独立判断**。
 
 **写作原则**：
 - **写你从源码中发现的，而不是 README 里写的**。README 人人都能读，你的价值是读了源码之后的洞察。
@@ -568,6 +588,155 @@ except subprocess.TimeoutExpired:
 {从这个项目的设计中学到了什么对 Agent 架构有启发的东西。
 要具体：不说"设计很好"，说"它的 X 模式解决了 Y 问题，我们的 Agent 在 Z 场景也有类似需求，可以借鉴"。
 每个启发 3-5 句话，关联到实际工作场景。}
+
+## 一图读懂：架构全景
+
+用 PlantUML 画出项目的核心架构和数据流。这张图的目标是让读者 30 秒理解"这个系统怎么工作的"。
+
+```plantuml
+@startuml {project_name}-architecture
+!theme plain
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+
+title {project_name} — 架构全景
+
+{根据源码阅读理解画出：
+- 核心组件及其职责（用 component 或 rectangle）
+- 组件间的数据流（用箭头 -->）
+- 外部依赖（用 cloud 或 database）
+- 用户输入和最终输出（用 actor）
+
+示例结构：
+actor "用户" as user
+component "CLI/API入口" as entry
+component "核心引擎" as engine
+database "状态存储" as store
+cloud "外部API" as api
+
+user -> entry : 输入指令
+entry -> engine : 解析后的任务
+engine -> api : 调用
+engine -> store : 持久化
+engine -> user : 结果输出
+}
+
+@enduml
+```
+
+**画图原则**：
+- 只画核心路径，不画所有细节
+- 标注关键源文件名（如 `agent/loop.py`）
+- 用中文标注组件职责
+- 如果有多个模式/路径，用 `alt` 或分组表示
+
+## 犀利点评：优点与缺点
+
+**不要客气，不要废话。** 这一节的价值在于帮读者快速判断"这个东西值不值得花时间"。
+
+### 值得抄的（优点）
+{3-5 条，每条格式：}
+- **{优点名称}**：{一句话说清这个优点的本质} → 对我们的启示：{如何借鉴到自己的 code agent}
+
+### 劝你别碰的（缺点）
+{3-5 条，每条格式：}
+- **{缺点名称}**：{一句话说清问题} → 影响：{会在什么场景下坑你}
+
+### 一句话判决
+{用一句犀利的话总结整体评价，风格参考：
+- "架构一流但文档垃圾，适合有源码阅读能力的团队"
+- "demo 看着惊艳，生产环境会让你哭"
+- "解决了一个真问题，但解决方式比问题本身还复杂"
+- "小而美，做好了一件事，不多不少"
+}
+
+## 实现路径图
+
+用 PlantUML 画出"如果要接入这个项目，具体怎么做"的实现路径。
+
+```plantuml
+@startuml {project_name}-integration-path
+!theme plain
+
+title 接入 {project_name} 的实现路径
+
+|准备阶段|
+start
+:{评估前置条件}
+需要: {列出依赖};
+:{环境准备}
+{具体安装/配置步骤};
+
+|接入阶段|
+:{最小可用集成}
+{最简单的接入方式，让它先跑起来};
+:{核心功能对接}
+{把核心功能接入到自己的系统中};
+
+|验证阶段|
+if ({关键验证点}) then (通过)
+  :{生产准备}
+  {需要额外做的事};
+  stop
+else (不通过)
+  :{替代方案}
+  {如果不行该怎么办};
+  stop
+endif
+
+@enduml
+```
+
+## NotebookLM 播客素材
+
+生成一份专门为 NotebookLM 优化的简报文档，用于自动生成解说播客。
+
+**保存为**：`$EXP_DIR/notebook-briefing.md`
+
+**格式要求**（NotebookLM 对话式输入效果最好）：
+
+```markdown
+# {project_name} 深度解读：从源码到实战
+
+## 这个项目解决了什么问题？
+{用讲故事的方式说清背景——现有方案的痛点是什么，这个项目怎么解决的。
+写得像在跟朋友解释，不是写论文。}
+
+## 我读了源码，发现了这些有意思的东西
+{把技术原理用"我发现..."的句式展开，每个发现 3-5 句话。
+重点讲"为什么这么设计"而不是"怎么实现的"。
+适合作为播客讨论话题的发现优先。}
+
+## 我实际试了一下，结果是...
+{用第一人称讲动手实验的过程和发现。
+"我写了一个脚本尝试 X，结果发现 Y，这说明 Z..."
+失败的实验比成功的更有播客价值——讲讲为什么失败、学到了什么。}
+
+## 让我犀利地评价一下
+{把优缺点用对话体写出来：
+"最让我惊喜的是..."
+"但让我担心的是..."
+"如果让我做技术选型，我会...因为..."}
+
+## 对我们自己的工作有什么启发？
+{关联到 code agent 应用：
+"如果我们要做类似的事，可以借鉴它的..."
+"但要避免它踩的坑，比如..."
+"最大的 takeaway 是..."}
+
+## 值得追问的问题
+{列 3-5 个开放性问题，适合播客讨论：
+- "如果把 X 技术应用到 Y 场景，会发生什么？"
+- "为什么作者选择了 A 方案而不是 B？这背后有什么权衡？"
+- "这个项目 6 个月后还会活着吗？为什么？"}
+```
+
+**写作要点**：
+- 全文用**对话体/第一人称**，像在准备播客提纲
+- 多用"我发现""让我惊讶的是""值得注意的是"这类引导语
+- 每段 3-5 句话，适合口语节奏
+- 技术细节要有，但用类比和例子解释
+- 有争议性/讨论性的观点优先（播客需要话题性）
 
 ## 结论
 
@@ -686,8 +855,15 @@ H3: 工作流集成
   ordered: {与 code agent 应用的 2-3 个结合点，含具体接入方式}
 H3: Agent 架构启发
   ordered: {2-3 个具体启发，关联实际工作场景}
+H3: 犀利点评
+  bullet: 值得抄的：{2-3 条优点，每条一句话}
+  bullet: 劝你别碰的：{2-3 条缺点，每条一句话}
+  文本: 一句话判决：{犀利总结}
+H3: 实现路径
+  ordered: {3-4 步接入路径，每步一句话}
 H3: 结论
   文本: {verdict_cn}。{2-3 句话总结}
+  文本: 播客素材已生成，可上传 NotebookLM 生成解说音频
 ```
 
 **飞书文档写入失败时**：不中断流程，在飞书推送消息中标注"飞书文档写入失败，完整报告见本地文件"。
@@ -723,9 +899,13 @@ H3: 结论
 1. {最佳接入点}
 2. {次佳接入点}
 
+💬 犀利点评：{one_line_judgement}
+
 🧠 架构启发：{最有价值的 1 个 insight，一句话}
 
 📄 完整报告：https://larkoffice.com/docx/{X_LAB_FEISHU_DOC_ID}
+🎙️ 播客素材：~/.openclaw/workspace/x-lab/experiments/{id}/notebook-briefing.md
+   → 上传到 NotebookLM 可自动生成解说播客
 ```
 
 如果飞书文档写入失败，最后一行改为：
@@ -767,5 +947,8 @@ H3: 结论
 - **写边界比写能力更重要**："能做 X"人人都知道（README 写了），"做不到 Y"才是调研的独特价值
 - **具体到代码**：不说"架构清晰"，说"Agent 类用状态机管理交互状态，核心循环在 agent/loop.py:45"
 - **可操作的集成建议**：不说"可以接入"，说"通过 X 方式接入，需要适配 Y，预计工作量 Z"
-- **控制篇幅但不牺牲深度**：report 1000-2000 字正文（不含表格和代码），飞书消息不超过 400 字
+- **控制篇幅但不牺牲深度**：report 1500-2500 字正文（不含表格、代码和 PlantUML），飞书消息不超过 500 字
+- **PlantUML 图要精炼**：架构图不超过 15 个组件，实现路径不超过 8 个步骤——太复杂等于没图
+- **犀利点评要有立场**：不说"各有优劣"这种废话，明确说"好"还是"不好"，给出理由
+- **NotebookLM 素材要有话题性**：写得像播客提纲不像论文，有争议性观点、有开放问题、有"让我惊讶的是..."
 - **进度追踪**：每完成一个阶段都更新 experiment.json 的 progress 字段，支持断点续研
