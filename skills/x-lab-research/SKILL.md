@@ -1,6 +1,6 @@
 ---
 name: x-lab-research
-description: 全自动实操调研——给定 GitHub URL 或帖子信息，Luna 自动完成 clone/安装/测试/评分/报告，零人工干预。支持断点续研。触发词：调研、试用、evaluate、x-lab、实验、帮我看看这个项目、帮我调研一下。
+description: 全自动深度调研——给定 GitHub URL 或帖子信息，自动完成 clone/安装/源码阅读/动手实验/评分/报告/飞书推送，零人工干预。重点产出技术原理、能力边界、架构洞察和工作流集成分析。支持断点续研。触发词：调研、试用、evaluate、x-lab、实验、帮我看看这个项目、帮我调研一下。
 metadata:
   trigger-hint: 当消息包含"帮我调研一下这个项目"（dispatch 固定格式）、GitHub URL（github.com/xxx/yyy）、"调研"+"项目/仓库/repo"、"试用一下"、"evaluate"、"帮我看看这个项目"、"x-lab research"时触发。注意：如果消息只提到"日报"而没有具体项目 URL，应该由 x-lab-dispatch 处理，不是本 skill。
   openclaw:
@@ -15,6 +15,26 @@ user-invocable: true
 你是调研助手。你在本地执行所有调研。
 
 **核心原则：全程自动化，不问人。** 除非遇到无法解决的阻塞（如需要付费 API key），否则不要中途问用户确认任何事情。完成调研后直接推送结果。
+
+---
+
+## 飞书认证配置
+
+所有飞书 API 调用（文档写入、消息推送）需要以下环境变量：
+
+| 环境变量 | 说明 | 示例 |
+|---------|------|------|
+| `FEISHU_APP_ID` | 飞书应用的 App ID | `cli_redacted_luna_app_id` |
+| `FEISHU_APP_SECRET` | 飞书应用的 App Secret | （不要硬编码到 SKILL.md） |
+| `DAILY_X_SIGNAL_FEISHU_RECEIVE_ID` | 消息推送目标的 **open_id**（receive_id_type=open_id） | `ou_9fe2b3d22ed03b23efdeb3afe8d6c60f` |
+| `X_LAB_FEISHU_DOC_ID` | 飞书云文档的 document_id（从文档 URL 中获取） | `RcpOdakvOoWB5sxRVVtcPqnHnxb` |
+
+**加载方式**：从 `~/.openclaw/workspace/daily-x-signal/.env.local` 加载（`source .env.local`）。
+
+**重要**：
+- `DAILY_X_SIGNAL_FEISHU_RECEIVE_ID` 是 **open_id**（以 `ou_` 开头），发消息时 `receive_id_type` 必须填 `open_id`
+- open_id 是**每个飞书应用独立的**——同一个用户在不同 App 下有不同的 open_id，不要混用
+- 获取 `tenant_access_token`：`POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal`，body `{"app_id": "$FEISHU_APP_ID", "app_secret": "$FEISHU_APP_SECRET"}`
 
 ---
 
@@ -206,10 +226,17 @@ cd "$EXP_DIR/repo"
 
 # 1. 跑测试（超时 3 分钟，只跑前面的测试）
 if [ -d "tests" ] || [ -d "test" ]; then
-    timeout 180 python3 -m pytest tests/ -x --tb=short -q 2>&1 | tee "$EXP_DIR/test.log"
+    # macOS 可能没有 GNU timeout，用 python 替代
+python3 -c "
+import subprocess, sys
+try:
+    r = subprocess.run([sys.executable, '-m', 'pytest', 'tests/', '-x', '--tb=short', '-q'], timeout=180, capture_output=False)
+except subprocess.TimeoutExpired:
+    print('TIMEOUT: 测试超时（3分钟）')
+" 2>&1 | tee "$EXP_DIR/test.log"
 fi
 if [ -f "package.json" ]; then
-    timeout 180 npm test 2>&1 | tee -a "$EXP_DIR/test.log"
+    python3 -c "import subprocess; subprocess.run(['npm', 'test'], timeout=180)" 2>&1 | tee -a "$EXP_DIR/test.log"
 fi
 
 # 2. CLI 检查
@@ -282,7 +309,14 @@ DEMO
 
 # 执行（超时 2 分钟）
 cd "$EXP_DIR/repo"
-timeout 120 python3 "$EXP_DIR/try_demo.py" 2>&1 | tee "$EXP_DIR/demo.log"
+# macOS 兼容的超时方式
+python3 -c "
+import subprocess, sys
+try:
+    subprocess.run([sys.executable, '$EXP_DIR/try_demo.py'], timeout=120)
+except subprocess.TimeoutExpired:
+    print('TIMEOUT: demo 超时（2分钟）')
+" 2>&1 | tee "$EXP_DIR/demo.log"
 ```
 
 **E.2 探索能力边界**
@@ -543,6 +577,12 @@ timeout 120 python3 "$EXP_DIR/try_demo.py" 2>&1 | tee "$EXP_DIR/demo.log"
 **写入方式**：使用飞书文档 Block API（`/open-apis/docx/v1/documents/{doc_id}/blocks/{doc_id}/children`）。
 
 **飞书文档 ID**：从环境变量 `X_LAB_FEISHU_DOC_ID` 获取
+
+**文档权限处理**：
+- 首次写入时如果返回权限错误（403/permission denied）→ 创建新文档：`POST /open-apis/docx/v1/documents`，body `{"title": "x-lab 调研报告", "folder_token": ""}`
+- 创建成功后，立即授权用户访问：`POST /open-apis/drive/v1/permissions/{document_id}/members?type=docx`，body `{"member_type": "openchat", "member_id": "{DAILY_X_SIGNAL_FEISHU_RECEIVE_ID}", "perm": "full_access"}`
+- 将新文档 ID 写入 `.env.local`（更新 `X_LAB_FEISHU_DOC_ID`），后续调研复用
+- 如果授权 API 也失败，仍然继续写入（文档创建者即 App 有写入权限），在推送消息中告知用户手动获取文档链接
 
 **文档结构**：所有调研报告追加到同一个文档。以日期为 H1 大标题，项目名为 H2 小标题。同一天的多个调研共享同一个日期标题。
 
