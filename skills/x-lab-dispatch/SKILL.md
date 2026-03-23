@@ -12,9 +12,9 @@ user-invocable: true
 
 > **前置依赖**：本 skill 依赖 `daily-x-signal` skill 生成的日报 JSON（`output/daily-brief-*.json`）。请先确保 daily-x-signal 已配置并能正常生成日报。三个 skill 的协作关系：`daily-x-signal`（生成日报）→ `x-lab-dispatch`（扫描筛选派发）→ `x-lab-research`（执行调研）。
 
-> **执行环境假设**：所有 skill 都在同一台机器上执行（Mac mini），日报文件路径为 `~/.openclaw/workspace/daily-x-signal/output/`，实验目录为 `~/.openclaw/workspace/x-lab/experiments/`。
-
 你是调研调度助手。你负责从日报中筛选值得调研的实操帖子，去重后推送飞书候选卡片供用户选择，然后逐个派发给 x-lab-research 执行。
+
+> **路径约定**：日报文件在 `~/.openclaw/workspace/daily-x-signal/output/`，实验目录在 `~/.openclaw/workspace/x-lab/experiments/`。dispatch 和 research 应在同一台机器上执行（共享文件系统）。
 
 **核心原则：扫描 → 去重 → 推送候选卡片 → 等用户选择 → 派发 → 退出。不等待调研完成。**
 
