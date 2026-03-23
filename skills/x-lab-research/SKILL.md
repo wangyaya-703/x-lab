@@ -60,7 +60,14 @@ GitHub: {url}
 
 从消息中提取 GitHub URL、帖子 URL、作者、实验 ID。如果消息中包含实验 ID，直接使用；否则自动生成。
 
-### 模式 C：批量调研
+### 模式 C：从 pending.json 读取任务
+
+启动时检查 `~/.openclaw/workspace/x-lab/pending.json`，如果存在且有 `"status": "pending"` 的任务，按顺序逐个执行。每个完成后：
+1. 更新 pending.json 中该任务的 `"status": "done"`
+2. 立即推送报告
+3. 继续下一个
+
+### 模式 D：批量调研
 
 用户发来多个 URL 或说"把这几个都调研一下" → 逐个执行调研，每个完成后立即推送报告。
 
@@ -111,20 +118,45 @@ EXP_DIR=~/.openclaw/workspace/x-lab/experiments/$EXPERIMENT_ID
 
 ```
 ~/.openclaw/workspace/x-lab/
-├── experiments/
+├── experiments/                   # 每个实验一个目录，目录即隔离（无需 git 分支）
 │   └── {experiment_id}/
-│       ├── experiment.json      # 结构化评分 + 进度追踪（主要产出）
-│       ├── research-report.md   # 可读报告（主要产出）
-│       ├── install.log          # 安装日志
-│       ├── test.log             # 测试日志
-│       └── repo/                # clone 的仓库（shallow）
-└── EXPERIMENTS.md               # 汇总表
+│       ├── experiment.json        # 结构化评分 + 进度追踪（唯一 source of truth）
+│       ├── research-report.md     # 可读报告（主要产出）
+│       ├── install.log            # 安装日志
+│       ├── test.log               # 测试日志
+│       ├── demo.log               # 动手实验日志
+│       └── repo/                  # clone 的仓库（shallow）
+├── EXPERIMENTS.md                 # 汇总表（derived view，从 experiment.json 生成）
+├── pending.json                   # 待调研任务队列（dispatch 写入，research 消费）
+└── dispatch-log-{date}.json       # 派发日志（dispatch 写入，仅做记录）
 ```
+
+**隔离策略**：每个实验独立目录，无需 git 分支。如需归档旧实验，按月打包即可。
 
 实验 ID 格式：`YYYY-MM-DD-{x_author}-{repo}`（如 `2026-03-22-epiral-bb-browser`）。
 - `x_author`：X 作者 handle（不含 @）
 - `repo`：GitHub repo 名称
 - 如果没有 GitHub URL，`repo` 取帖子正文前 16 个字母数字字符（小写）
+
+### 进度通知（飞书）
+
+每完成一个主要阶段，发一条短飞书消息通知用户进度。这解决了调研过程中用户无法感知进度的问题（调研可能需要 20-40 分钟）。
+
+**格式**：
+```
+🔬 {experiment_id} 进度：{phase_cn}完成
+{一句话状态}
+```
+
+**示例**：
+```
+🔬 2026-03-23-oragnes-browser-use 进度：安装完成
+✅ pip install -e . 成功（23秒），进入源码分析
+```
+
+只在阶段 A（信息收集）、B（安装）、D（源码分析）完成时发送。阶段 C（测试）和 E（实验）结果合并到 F（评分）通知中。不要每个小步骤都发消息。
+
+如果飞书消息发送失败，忽略继续——进度通知是辅助功能，不应影响调研主流程。
 
 ### 安全约束
 
@@ -554,9 +586,13 @@ except subprocess.TimeoutExpired:
 
 **进入时更新 progress.phase = "done"，设置 completed_at**
 
-### 更新 EXPERIMENTS.md
+### 更新 pending.json（如果是 dispatch 触发）
 
-追加一行到 `~/.openclaw/workspace/x-lab/EXPERIMENTS.md`：
+如果当前任务来自 pending.json，将该任务的 `"status"` 更新为 `"done"`，添加 `"completed_at"` 时间戳。
+
+### 更新 EXPERIMENTS.md（derived view）
+
+EXPERIMENTS.md 是从各 experiment.json 生成的汇总视图，不是独立数据源。追加一行：
 
 ```
 | {date} | {id} | @{author} | [{repo}]({url}) | {install_icon} | {consistency}/5 | {usefulness}/5 | {maturity}/5 | ⭐{stars} | {verdict_cn} |
