@@ -24,7 +24,7 @@ user-invocable: true
 
 | 环境变量 | 说明 | 示例 |
 |---------|------|------|
-| `FEISHU_APP_ID` | 飞书应用的 App ID | `cli_redacted_luna_app_id` |
+| `FEISHU_APP_ID` | 飞书应用的 App ID | `cli_xxxxxxxxxxxxxxxx` |
 | `FEISHU_APP_SECRET` | 飞书应用的 App Secret | （不要硬编码到 SKILL.md） |
 | `DAILY_X_SIGNAL_FEISHU_RECEIVE_ID` | 消息推送目标的 **open_id**（receive_id_type=open_id） | `ou_9fe2b3d22ed03b23efdeb3afe8d6c60f` |
 | `X_LAB_FEISHU_DOC_ID` | 飞书云文档的 document_id（从文档 URL 中获取） | `RcpOdakvOoWB5sxRVVtcPqnHnxb` |
